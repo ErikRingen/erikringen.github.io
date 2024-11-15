@@ -4,7 +4,7 @@
     "href": "about.html",
     "title": "About",
     "section": "",
-    "text": "About this blog"
+    "text": "I am a Data Scientist at the University of Zürich, where I do applied statistics, and teach probabalsitic modelling to graduate students. My PhD was in Biological Anthropology, where I focused on comparative phylogenetic methods."
   },
   {
     "objectID": "posts/OLRE/index.html",
@@ -19,19 +19,5 @@
     "title": "Erik J. Ringen, PhD",
     "section": "",
     "text": "The right way to do predictive checks with observation-level random effects\n\n\n\n\n\n\nPrediction\n\n\nStatistics\n\n\nbrms\n\n\nPyMC\n\n\n\n\n\n\n\n\n\nNov 10, 2024\n\n\nErik J. Ringen\n\n\n\n\n\n\nNo matching items"
-  },
-  {
-    "objectID": "posts/OLRE/index.html#brms-1",
-    "href": "posts/OLRE/index.html#brms-1",
-    "title": "The right way to do predictive checks with observation-level random effects",
-    "section": "brms",
-    "text": "brms\n\n\nCode\nKline$obs &lt;- 1:nrow(Kline)\n\nm_poisson_OLRE &lt;- brm(\n    total_tools ~ 1 + log_pop_z + (1|obs),\n    family = poisson(link = \"log\"),\n    prior = prior(normal(3, 0.5), class = \"Intercept\") + \n        prior(normal(0, 0.2), class = \"b\") + \n        prior(exponential(2), class = \"sd\"),\n    chains = 1,\n    control = list(adapt_delta = 0.95),\n    data = Kline,\n    seed=123,\n    save_pars = save_pars(all = TRUE))\n\nbrms::pp_check(m_poisson_OLRE, type = \"dens_overlay\", ndraws = 200) + theme(legend.position = \"none\") + brms::pp_check(m_poisson_OLRE, type = \"intervals\") +\n    plot_annotation(subtitle = \"OLRE PPC: The wrong way\")"
-  },
-  {
-    "objectID": "posts/OLRE/index.html#pymc-1",
-    "href": "posts/OLRE/index.html#pymc-1",
-    "title": "The right way to do predictive checks with observation-level random effects",
-    "section": "PyMC",
-    "text": "PyMC\n\n\nCode\nobs_idx = np.arange(len(Kline))\ncoords = {\"obs\": obs_idx}\n\nwith pm.Model(coords = coords) as m_poisson_OLRE:\n    # priors\n    b0 = pm.Normal(\"Intercept\", mu=3, sigma=0.5)\n    b_pop = pm.Normal(\"slope\", mu=0, sigma=0.2)\n    nu = pm.Normal(\"nu\", mu = 0, sigma = 1, dims = \"obs\")\n    sigma = pm.Exponential(\"sigma\", lam = 2)\n    # linear model\n    log_lam = b0 + nu[obs_idx]*sigma + b_pop * Kline['log_pop_z'] \n    ## Poisson likelihood\n    y = pm.Poisson(\"y\", mu=pm.math.exp(log_lam), observed=Kline['total_tools'])\n\n    idata_OLRE = pm.sample(4000, chains = 1, target_accept = 0.95, random_seed=123)\n    pm.sample_posterior_predictive(idata_OLRE, extend_inferencedata=True, random_seed=1);\n\n\nCode\n\nidata_OLRE.observed_data['y'] = idata_OLRE.observed_data['y'].astype(np.float64) # Convert observed data to float for visualization\nidata_OLRE.posterior_predictive['y'] = idata_OLRE.posterior_predictive['y'].astype(np.float64)\n\nfig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))\n\nplot_ppc_dens(idata.observed_data['y'], idata.posterior_predictive['y'], axes, 0)\nplot_ppc_intervals(idata.observed_data['y'], idata.posterior_predictive['y'], axes, 1)\naxes[0].set_title('OLRE PPC: The wrong way', loc = \"left\")\n\n\n\n\n\nIncorrect posterior predictive checks for OLRE Poisson model, using off-the-shelf convenience functions. (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.\n\n\n\n\n:::\nLooks good, right? Sadly, this is a little too good to be true. We have mislead ourselves, and to see why, have a look at the \\(\\nu_{\\text{obs}}\\) parameters in comparison to the observed data:\n\n\nCode\nm_poisson_OLRE |&gt; \n    spread_draws(r_obs[obs]) |&gt; \n    median_qi(estimate = r_obs) |&gt; \n    left_join(Kline, by = \"obs\") |&gt; \n    ggplot(aes(y = estimate, x = log(total_tools), ymin = .lower, ymax = .upper)) +\n    geom_pointinterval() + \n    theme_classic(base_size = 15) + \n    labs(y = expression(nu[obs]), title = \"Fitted OLRE ~ outcome value\")\n\n\n\n\n\n\n\n\n\nThis plot shows us that the OLREs are positively correlated with the values of the raw data. Why? These parameters are doing exactly what they are supposed to do: capture excess dispersion in the data by learning which points are higher or lower than we would expect, conditional on population size. But if you think for a moment about out-of-sample prediction, you might intuit the problem. We need to generate \\(y_\\text{rep}\\) for a new observation with some unknown \\(y_{\\text{test}}\\), whose value will not be known ahead of time. Thus, the OLRE can convey no information about the value \\(y_{\\text{test}}\\). In our naive predictive check, we have mistakenly treated \\(\\nu\\) as part of the deterministic mean function, when really it is stochastic, akin to \\(\\epsilon\\) in a linear regression."
   }
 ]
