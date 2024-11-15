@@ -267,11 +267,11 @@ axes[0].set_title('OLRE PPC: The wrong way', loc = "left")
 
 :::
 
+Looks good, right? Sadly, this is a little too good to be true. We have mislead ourselves, and to see why, have a look at the $\nu_{\text{obs}}$ parameters in comparison to the observed data:
+
 :::{.panel-tabset}
 
 ## brms
-
-Looks good, right? Sadly, this is a little too good to be true. We have mislead ourselves, and to see why, have a look at the $\nu_{\text{obs}}$ parameters in comparison to the observed data:
 
 ```{r, warning = F, message = F, results = "hide", fig.keep = "all"}
 #| fig-cap: Fitted nu parameters as a function of the natural log of the response, total tools. Bars represent 90% credible intervals.
@@ -294,8 +294,8 @@ m_poisson_OLRE |>
 stats = az.summary(idata_OLRE, var_names=["^nu.*"], filter_vars="regex", hdi_prob=0.9)
 
 fig = plt.figure(figsize=(20, 13))
-plt.hlines(y=idata_OLRE.observed_data['y'], xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black")
-plt.scatter(y=idata_OLRE.observed_data['y'], x=stats['mean'], color="black")
+plt.hlines(y=np.math.log(idata_OLRE.observed_data['y']), xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black")
+plt.scatter(y=np.math.log(idata_OLRE.observed_data['y']), x=stats['mean'], color="black")
 
 plt.title('y ~ Fitted OLRE', loc = "left")
 plt.xlabel(r'$\nu$')
