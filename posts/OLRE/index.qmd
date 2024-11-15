@@ -1,0 +1,431 @@
+---
+title: "The right way to do predictive checks with observation-level random effects"
+author: "Erik J. Ringen"
+date: "2024-11-10"
+categories: [Prediction, Statistics, brms, PyMC]
+image: "image.png"
+code-fold: true
+toc: true
+bibliography: references.bib
+---
+
+```{r, echo = F}
+library(reticulate)
+use_condaenv("pymc_env")
+```
+
+Observation-level random effects (OLRE) are an effective way to model overdispersed count data [@harrison2014using]. For example, OLREs relax the assumption of Poisson regression that the variance is equal to the mean by adding a "random intercept" ($\nu$) for every observation. For each observation $i$:
+
+$$ y_i \sim \text{Poisson}(\lambda_i)$$
+$$ \text{log}(\lambda_i) = b_0 + \nu_i$$
+$$ \nu_i \sim \mathcal{N} (0, \sigma) $$
+
+By putting $\nu$ inside the linear model, we smuggle a variance component ($\sigma$) into a distribution that otherwise has only a single rate parameter (this trick also works for the Binomial distribution [@harrison2015comparison]). OLREs are also useful for [multi-response models](https://cran.r-project.org/web/packages/brms/vignettes/brms_multivariate.html), allowing us to capture residual correlations between multiple outcomes [@hadfield2010mcmc].
+
+[Predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html) are a routine form of model checking used to understand a model's ability to represent the data. Unfortunately, **most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.** In this post I will show you how to do it the right way, in either R + `brms` or Python + `PyMC`. In this post I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as `lme4` and `glmmTMB`.
+
+# The wrong way
+
+In Bayesian workflow, we often perform [posterior predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html). In brief, draws from the posterior distribution are used to generate many synthetic replications of our dataset, denoted $y_{\text{rep}}$, which are then compared to the observed values. Systematic discrepancies between the distribution of $y_\text{rep}$ and the actual data indicate misspecification, and can suggest ways to improve our model.
+
+To illustrate this idea, we'll use the Oceanic toolkit complexity dataset from Michelle Kline and Robert Boyd [@kline2010population]. The response variable is the count of unique tools in a given Oceanic society (`total_tools`), which is predicted by the natural logarithm of population size (`population`). First, we will fit this basic model, using priors from [@mcelreath2020god]:
+
+$$ \text{total\_tools}_i \sim \text{Poisson}(\lambda_i)$$
+$$ \text{log}(\lambda_i) = b_0 + b_{\text{pop}}\text{log}(\text{population}_{z_i})$$
+$$ b_0 \sim \mathcal{N}(3, 0.5)$$
+$$ b_{\text{pop}} \sim \mathcal{N}(0, 0.2)$$
+
+Then, we will perform posterior predictive checks using some off-the-shelf convenience functions.
+
+:::{.panel-tabset}
+
+## brms
+
+```{r, warning = F, message = F, results="hide", fig.keep='all'}
+#| fig-cap: Posterior predictive checks for basic Poisson model. (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
+
+library(brms)
+library(dplyr)
+library(ggplot2)
+library(bayesplot)
+library(tidybayes)
+library(patchwork)
+set.seed(123)
+
+Kline <- read.csv("https://raw.githubusercontent.com/rmcelreath/rethinking/refs/heads/master/data/Kline.csv", sep=";")
+
+Kline$log_pop_z <- scale(log(Kline$population)) # standardize
+
+m_poisson <- brm(
+    total_tools ~ 1 + log_pop_z,
+    family = poisson(link = "log"),
+    prior = prior(normal(3, 0.5), class = "Intercept") + 
+        prior(normal(0, 0.2), class = "b"),
+    chains = 1,
+    data = Kline,
+    seed = 123)
+
+color_scheme_set("teal")
+theme_set(theme_classic(base_size = 13))
+
+brms::pp_check(m_poisson, type = "dens_overlay", ndraws = 200) + 
+    theme(legend.position = "none") + 
+    brms::pp_check(m_poisson, type = "intervals") + 
+    plot_layout(guides = 'collect') + 
+    theme_classic(base_size = 13) +
+    plot_annotation(subtitle = "Basic Poisson PPC") 
+```
+
+## PyMC
+```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Posterior predictive checks for basic Poisson model. (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
+
+import matplotlib.colors as cols
+import matplotlib.pyplot as plt
+plt.rcParams.update({
+    'font.size': 30,
+    'axes.titlesize': 32,         
+    'axes.labelsize': 30,        
+    'xtick.labelsize': 28,      
+    'ytick.labelsize': 28, 
+    'legend.fontsize': 32,
+    'lines.linewidth': 1.5,
+})
+
+import pandas as pd
+import pymc as pm
+import numpy as np
+from scipy import stats
+from scipy.stats import gaussian_kde
+import arviz as az
+
+Kline = pd.read_csv("https://raw.githubusercontent.com/rmcelreath/rethinking/refs/heads/master/data/Kline.csv", sep=";")
+
+Kline['log_pop_z'] = stats.zscore(np.log(Kline['population']))
+
+with pm.Model() as m_poisson:
+    # priors
+    b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
+    b_pop = pm.Normal("slope", mu=0, sigma=0.2)
+    # linear model
+    log_lam = b0 + b_pop * Kline['log_pop_z']
+    ## Poisson likelihood
+    y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=Kline['total_tools'])
+
+    idata = pm.sample(4000, chains=1, random_seed=123)
+    pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=1);
+
+
+idata.observed_data['y'] = idata.observed_data['y'].astype(np.float64) # Convert observed data to float for visualization
+idata.posterior_predictive['y'] = idata.posterior_predictive['y'].astype(np.float64)
+
+# Define plot functions
+def plot_ppc_dens(y, yrep, ax, ax_index, num_samples=200):
+    yrep = yrep.values
+    y = y.values 
+
+    for i in range(num_samples):
+        sample = yrep[0, i, :]
+        kde_sample = gaussian_kde(sample)
+        x_values = np.linspace(yrep.min(), yrep.max(), 200)
+        ax[ax_index].plot(x_values, kde_sample(x_values), color=(0.0, 0.486, 0.486, 0.05))  # Use low alpha for transparency
+
+    kde = gaussian_kde(y)
+    x_values = np.linspace(yrep.min(), yrep.max(), 200)
+    ax[ax_index].plot(x_values, kde(x_values), color="#007c7c", linewidth=6)
+
+    ax[ax_index].set_xlabel('')
+    ax[ax_index].set_ylabel('')
+    ax[ax_index].margins(y=0)
+    ax[ax_index].margins(x=0)
+    ax[ax_index].spines['top'].set_visible(False)
+    ax[ax_index].spines['right'].set_visible(False)
+
+def plot_ppc_intervals(y, yrep, ax, ax_index):
+    y = y.values
+    yrep = yrep.stack(sample=("chain", "draw")).values
+
+    median_predictions = np.median(yrep, axis=1)
+
+    # Define x-axis values
+    x = np.arange(len(y))
+
+    intervals = [(25, 75), (5, 95)]
+    colors = ['#007C7C', '#007C7C']
+    labels = ['50% Interval', '90% Interval']
+
+    for (low, high), color, label in zip(intervals, colors, labels):
+        lower_bounds = np.percentile(yrep, low, axis=1)
+        upper_bounds = np.percentile(yrep, high, axis=1)
+        error_lower = median_predictions - lower_bounds
+        error_upper = upper_bounds - median_predictions
+        error = [error_lower, error_upper]
+
+        ax[ax_index].errorbar(
+        x,
+        median_predictions,
+        yerr=error,
+        fmt='o',
+        color='#007C7C',
+        ecolor=color,
+        elinewidth=8,
+        capsize=0,
+        label=label,
+        alpha = 0.10,
+        markersize=20
+    )
+
+    # Overlay observed data points
+    ax[ax_index].scatter(
+        x,
+        y,
+        color='#007C7C',
+        label='Observed Data',
+        zorder=5,
+        s = 150
+    )
+
+    # Customize the plot
+    ax[ax_index].set_xlabel('Data point (index)')
+    ax[ax_index].set_ylabel('')
+    ax[ax_index].set_title('')
+    ax[ax_index].legend(['y', 'yrep'], loc="upper left")
+    ax[ax_index].spines['top'].set_visible(False)
+    ax[ax_index].spines['right'].set_visible(False)
+
+
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
+
+plot_ppc_dens(idata.observed_data['y'], idata.posterior_predictive['y'], axes, 0)
+plot_ppc_intervals(idata.observed_data['y'], idata.posterior_predictive['y'], axes, 1)
+axes[0].set_title('Basic Poisson PPC', loc = "left")
+```
+
+:::
+
+We see some indications that the data are overdispersed, relative to the model. Namely, the distribution of the observed $y$ (`total_tools`) appears "flat" compared to $y_{\text{rep}}$ in the left-side plot. We can also see in the right-side plot that several observed values fall outside of the 90% credible intervals, suggesting that the model's predictions are too precise. So, lets try adding an OLRE to capture this overdispersion. Here's our updated model definition:
+
+$$ \text{total\_tools}_i \sim \text{Poisson}(\lambda_i)$$
+$$ \text{log}(\lambda_i) = b_0 + \nu_i + b_{\text{pop}}\text{log}(\text{population}_{z_i})$$
+$$ b_0 \sim \mathcal{N}(3, 0.5)$$
+$$ b_{\text{pop}} \sim \mathcal{N}(0, 0.2)$$
+$$ \nu_i \sim \mathcal{N}(0, \sigma)$$
+$$ \sigma \sim \text{Exponential}(2) $$
+
+:::{.panel-tabset}
+
+## brms
+```{r, results='hide', message = F, warning = F, fig.keep='all'}
+Kline$obs <- 1:nrow(Kline)
+
+m_poisson_OLRE <- brm(
+    total_tools ~ 1 + log_pop_z + (1|obs),
+    family = poisson(link = "log"),
+    prior = prior(normal(3, 0.5), class = "Intercept") + 
+        prior(normal(0, 0.2), class = "b") + 
+        prior(exponential(2), class = "sd"),
+    chains = 1,
+    control = list(adapt_delta = 0.95),
+    data = Kline,
+    seed=123,
+    save_pars = save_pars(all = TRUE))
+
+brms::pp_check(m_poisson_OLRE, type = "dens_overlay", ndraws = 200) + theme(legend.position = "none") + brms::pp_check(m_poisson_OLRE, type = "intervals") +
+    plot_annotation(subtitle = "OLRE PPC: The wrong way") 
+```
+
+## PyMC
+```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Incorrect posterior predictive checks for OLRE Poisson model, using off-the-shelf convenience functions. (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
+
+obs_idx = np.arange(len(Kline))
+coords = {"obs": obs_idx}
+
+with pm.Model(coords = coords) as m_poisson_OLRE:
+    # priors
+    b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
+    b_pop = pm.Normal("slope", mu=0, sigma=0.2)
+    nu = pm.Normal("nu", mu = 0, sigma = 1, dims = "obs")
+    sigma = pm.Exponential("sigma", lam = 2)
+    # linear model
+    log_lam = b0 + nu[obs_idx]*sigma + b_pop * Kline['log_pop_z'] 
+    ## Poisson likelihood
+    y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=Kline['total_tools'])
+
+    idata_OLRE = pm.sample(4000, chains = 1, target_accept = 0.95, random_seed=123)
+    pm.sample_posterior_predictive(idata_OLRE, extend_inferencedata=True, random_seed=1);
+
+idata_OLRE.observed_data['y'] = idata_OLRE.observed_data['y'].astype(np.float64) # Convert observed data to float for visualization
+idata_OLRE.posterior_predictive['y'] = idata_OLRE.posterior_predictive['y'].astype(np.float64)
+
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
+
+plot_ppc_dens(idata_OLRE.observed_data['y'], idata_OLRE.posterior_predictive['y'], axes, 0)
+plot_ppc_intervals(idata_OLRE.observed_data['y'], idata_OLRE.posterior_predictive['y'], axes, 1)
+axes[0].set_title('OLRE PPC: The wrong way', loc = "left")
+```
+
+:::
+
+:::{.panel-tabset}
+
+## brms
+
+Looks good, right? Sadly, this is a little too good to be true. We have mislead ourselves, and to see why, have a look at the $\nu_{\text{obs}}$ parameters in comparison to the observed data:
+
+```{r, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Fitted nu parameters as a function of the natural log of the response, total tools. Bars represent 90% credible intervals.
+
+m_poisson_OLRE |> 
+    spread_draws(r_obs[obs]) |> 
+    median_qi(estimate = r_obs, .width = 0.9) |> 
+    left_join(Kline, by = "obs") |> 
+    ggplot(aes(x = estimate, y = log(total_tools), xmin = .lower, xmax = .upper)) +
+    geom_pointinterval() + 
+    theme_classic(base_size = 15) + 
+    labs(x = expression(nu), y = "log(total tools)", title = "y ~ Fitted OLRE")
+```
+
+## PyMC
+
+```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Fitted nu parameters as a function of the natural log of the response, total tools. Bars represent 90% credible intervals.
+
+stats = az.summary(idata_OLRE, var_names=["^nu.*"], filter_vars="regex", hdi_prob=0.9)
+
+fig = plt.figure(figsize=(20, 13))
+plt.hlines(y=idata_OLRE.observed_data['y'], xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black")
+plt.scatter(y=idata_OLRE.observed_data['y'], x=stats['mean'], color="black")
+
+plt.title('y ~ Fitted OLRE', loc = "left")
+plt.xlabel(r'$\nu$')
+plt.ylabel('log(total tools)')
+```
+
+:::
+
+This plot shows us that the OLREs are positively correlated with the values of the observed data. Why? These parameters are doing exactly what they are supposed to do: capture excess dispersion in the data by learning which points are higher or lower than we would expect, conditional on population size. But if you think for a moment about *out-of-sample* prediction, you might intuit the problem. We need to generate $y_\text{rep}$ for a new observation with some unknown $y_{\text{test}}$, whose value will not be known ahead of time. Thus, the OLRE should convey no information about the value $y_{\text{test}}$. In our naive predictive check, we have mistakenly treated $\nu$ as fixed, when really it should be replicated along with $y_\text{rep}$, akin to $\epsilon$ in a linear regression. Generating $y_\text{rep}$ this way is referred to as "mixed replication", because we leave the hyperparameter $\sigma$ fixed but replicate each random effect parameter [@gelman1996posterior].
+
+# The right way
+
+The way out of this is straightforward. All we have to do is replace the fitted OLREs with new levels, denoted $\nu_{\text{rep}}$, which are generated using posterior draws of the observation-level standard deviation $\sigma$. 
+
+:::{.panel-tabset}
+
+## brms
+
+```{r, warning = F, message = F, results = "hide", fig.keep = "all"}
+yrep_OLRE <- m_poisson_OLRE |> 
+    posterior_predict(newdata = Kline |> 
+    mutate(obs = paste("OLRE_rep", 1:n())),
+     allow_new_levels = TRUE,
+     sample_new_levels = "gaussian")
+
+bayesplot::ppc_dens_overlay(Kline$total_tools, yrep_OLRE[1:100,]) + theme(legend.position = "none") + bayesplot::ppc_intervals(Kline$total_tools, yrep_OLRE) +
+    plot_annotation(subtitle = "OLRE PPC: The right way") 
+```
+
+## PyMC
+```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Correct posterior predictive checks for OLRE Poisson model, sampling new levels of nu (nu_rep). (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
+
+import xarray as xr
+
+with m_poisson_OLRE:
+    nu_rep = pm.Normal("nu_rep", mu = 0, sigma = sigma, shape = len(Kline))
+    log_lam = b0 + nu_rep + b_pop * Kline['log_pop_z']
+    yrep = pm.Poisson("yrep", pm.math.exp(log_lam))
+
+pred_yrep = pm.sample_posterior_predictive(idata_OLRE, m_poisson_OLRE, predictions=True, extend_inferencedata=False, var_names = ['nu_rep', 'yrep'], random_seed=2)
+
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
+
+plot_ppc_dens(idata.observed_data['y'], pred_yrep.predictions['yrep'], axes, 0)
+plot_ppc_intervals(idata.observed_data['y'], pred_yrep.predictions['yrep'], axes, 1)
+axes[0].set_title('OLRE PPC: The right way', loc = "left")
+```
+
+:::
+
+Notice that, unlike our first predictive check with no OLRE, the credible intervals of $y_{\text{rep}}$ all contain the observed values of y. But unlike our (wrong) second predictive check, the predictions do not conform so closely to the observed values, because each $\nu_{\text{rep}}$ is independent of $y$. This provides us with a more realistic picture of our model's fit. So, why do most posterior predictive functions treat OLREs the wrong way by default? The answer is mundane: the software doesn't know whether $\nu$ is an OLRE or instead a parameter that should be fixed across replications, like random effects for group differences. The latter is more common, so the default is sensible--but not necessarily safe.
+
+There is a caveat: all posterior predictive checks are overly optimistic for *out-of-sample* data, because we are using the same data points to both fit and evaluate the model. As a result, a more complex model that looks better in a predictive check might actually look worse when generalizing to new data, i.e., overfitting. This issue is not specific to OLREs, but in the final section I'll show you how to address overfitting in predictive checks.
+
+
+# An even better way?
+
+Using leave-one-out cross validation, (LOOCV) we can construct predictions where one observation at a time is left out of model fitting and then used as a test point. This offers a more honest appraisal of predictive accuracy, because the model does not have access to the left out $y$ before we try to predict them. Now we have a true prediction task, rather than retrodicting the sample data.
+
+:::{.panel-tabset}
+
+## brms
+
+```{r, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: LOOCV posterior predictive checks for OLRE Poisson model. Observation-level reps, with bars representing 50% and 90% credible intervals.
+
+yrep_loo <- matrix(NA, nrow = ndraws(m_poisson_OLRE), ncol = nrow(Kline))
+
+for (i in 1:nrow(Kline)) {
+    model_loo <- update(m_poisson_OLRE, newdata = Kline[-i,], seed = 123)
+    yrep_loo[,i] <- posterior_predict(model_loo, newdata = Kline[i,], allow_new_levels = TRUE, sample_new_levels = "gaussian")
+}
+
+bayesplot::ppc_dens_overlay(Kline$total_tools, yrep_loo[1:100,]) + theme(legend.position = "none") + bayesplot::ppc_intervals(Kline$total_tools, yrep_loo) +
+    plot_annotation(subtitle = "OLRE PPC-LOO") 
+```
+
+## PyMC
+
+```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Exact LOOCV posterior predictive checks for OLRE Poisson model. Observation-level reps, with bars representing 50% and 90% credible intervals.
+
+def model_factory(train, test):
+    obs_idx = np.arange(len(train))
+    coords = {"obs": obs_idx}
+
+    with pm.Model(coords = coords) as model:
+        b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
+        b_pop = pm.Normal("slope", mu=0, sigma=0.2)
+        nu = pm.Normal("nu", mu = 0, sigma = 1, dims = "obs")
+        sigma = pm.Exponential("sigma", lam = 2)
+        # linear model
+        log_lam = b0 + nu[obs_idx]*sigma + b_pop * train['log_pop_z'] 
+        ## Poisson likelihood
+        y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=train['total_tools'])
+
+        nu_rep = pm.Normal("nu_rep", mu = 0, sigma = sigma)
+        yrep = pm.Poisson("yrep", pm.math.exp(b0 + nu_rep + b_pop * test['log_pop_z']))
+    
+        idata_loo = pm.sample(1000, chains = 1, target_accept = 0.99, random_seed=2)
+    
+    pred = pm.sample_posterior_predictive(idata_loo, model, predictions=True, extend_inferencedata=False, var_names = ['yrep'], random_seed=2)
+
+    return pred.predictions['yrep']
+
+test_preds = []
+
+for i in range(len(Kline)):
+    train = Kline.drop(index = Kline.index[i])
+    test = Kline.iloc[[i]]
+    yrep_loo = model_factory(train, test)
+    test_preds.append(yrep_loo)
+
+loo_preds_combined = xr.concat(test_preds, dim='obs').transpose('chain', 'draw', 'obs', 'yrep_dim_2').squeeze('yrep_dim_2')
+        
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
+plot_ppc_dens(idata.observed_data['y'], loo_preds_combined, axes, 0)
+plot_ppc_intervals(idata.observed_data['y'], loo_preds_combined, axes, 1)
+axes[0].set_title('OLRE PPC-LOO', loc = "left")
+```
+
+:::
+
+This predictive check is even less optimistic, but it still looks better than the basic Poisson model we fit, suggesting that the OLRE is helpful. For larger models, it would be infeasible to refit $N$ times, so one might turn to Pareo-smoothed importance sampling as an approximation (PSIS-LOO) [@vehtari2017practical]. However, my understanding is that PSIS is not reliable for these types of models, and one should instead [integrate out the OLREs using adaptive quadrature](https://users.aalto.fi/~ave/modelselection/roaches.html#5_Poisson_model_with_varying_intercept_and_integrated_LOO).
+
+# Reproducible environment
+
+[R session info](R_session_info.txt)
+
+[Conda environment](conda_environment.txt)
+
+# References

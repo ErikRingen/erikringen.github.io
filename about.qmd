@@ -1,0 +1,16 @@
+---
+title: "About"
+image: profile.jpg
+about:
+  template: jolla
+  links:
+    - icon: twitter
+      text: Twitter
+      href: https://twitter.com
+    - icon: github
+      text: Github
+      href: https://github.com
+
+---
+
+I am a Data Scientist at the University of Zürich, where I do applied statistics, and teach probabalsitic modelling to graduate students. My PhD was in Biological Anthropology, where I focused on comparative phylogenetic methods.

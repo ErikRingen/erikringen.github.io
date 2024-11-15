@@ -1,0 +1,46 @@
+R version 4.4.1 (2024-06-14)
+Platform: aarch64-apple-darwin20
+Running under: macOS Sonoma 14.1
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] grid      stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] loo_2.8.0         reticulate_1.39.0 patchwork_1.3.0   tidybayes_3.0.7  
+[5] bayesplot_1.11.1  ggplot2_3.5.1     dplyr_1.1.4       brms_2.22.0      
+[9] Rcpp_1.0.13-1    
+
+loaded via a namespace (and not attached):
+ [1] gtable_0.3.6         tensorA_0.36.2.1     QuickJSR_1.4.0      
+ [4] processx_3.8.4       inline_0.3.19        lattice_0.22-6      
+ [7] callr_3.7.6          vctrs_0.6.5          tools_4.4.1         
+[10] ps_1.8.0             generics_0.1.3       stats4_4.4.1        
+[13] curl_5.2.3           parallel_4.4.1       tibble_3.2.1        
+[16] fansi_1.0.6          pkgconfig_2.0.3      Matrix_1.7-0        
+[19] data.table_1.16.0    checkmate_2.3.2      distributional_0.5.0
+[22] RcppParallel_5.1.9   lifecycle_1.0.4      compiler_4.4.1      
+[25] farver_2.1.2         stringr_1.5.1        Brobdingnag_1.2-9   
+[28] munsell_0.5.1        codetools_0.2-20     pillar_1.9.0        
+[31] tidyr_1.3.1          arrayhelpers_1.1-0   StanHeaders_2.32.10 
+[34] bridgesampling_1.1-2 abind_1.4-8          nlme_3.1-166        
+[37] posterior_1.6.0      rstan_2.32.6         digest_0.6.37       
+[40] tidyselect_1.2.1     svUnit_1.0.6         mvtnorm_1.3-1       
+[43] stringi_1.8.4        reshape2_1.4.4       purrr_1.0.2         
+[46] labeling_0.4.3       colorspace_2.1-1     cli_3.6.3           
+[49] magrittr_2.0.3       pkgbuild_1.4.4       utf8_1.2.4          
+[52] withr_3.0.2          scales_1.3.0         backports_1.5.0     
+[55] estimability_1.5.1   emmeans_1.10.5       matrixStats_1.4.1   
+[58] gridExtra_2.3        png_0.1-8            coda_0.19-4.1       
+[61] V8_5.0.1             ggdist_3.3.2         rstantools_2.4.0    
+[64] rlang_1.1.4          xtable_1.8-4         glue_1.8.0          
+[67] jsonlite_1.8.9       R6_2.5.1             plyr_1.8.9          
