@@ -3,8 +3,8 @@ project:
 
 website:
   title: "erikringen.github.io"
-  site-url: https://ErikRingen.github.io
-  repo-url: https://github.com/ErikRingen/ErikRingen.github.io
+  site-url: https://erikringen.github.io
+  repo-url: https://github.com/ErikRingen/erikringen.github.io
   open-graph: true
   navbar:
     right:
