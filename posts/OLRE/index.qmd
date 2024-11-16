@@ -14,21 +14,21 @@ library(reticulate)
 use_condaenv("pymc_env")
 ```
 
-Observation-level random effects (OLRE) are an effective way to model overdispersed count data [@harrison2014using]. For example, OLREs relax the assumption of Poisson regression that the variance is equal to the mean by adding a "random intercept" ($\nu$) for every observation. For each observation $i$:
+Observation-level random effects (OLRE) are an effective way to model overdispersed count data [@harrison2014using]. For example, OLREs relax the assumption of Poisson regression that the variance is equal to the mean by giving each observation $i$ a "random intercept" ($\nu_i$):
 
 $$ y_i \sim \text{Poisson}(\lambda_i)$$
 $$ \text{log}(\lambda_i) = b_0 + \nu_i$$
 $$ \nu_i \sim \mathcal{N} (0, \sigma) $$
 
-By putting $\nu$ inside the linear model, we smuggle a variance component ($\sigma$) into a distribution that otherwise has only a single rate parameter (this trick also works for the Binomial distribution [@harrison2015comparison]). OLREs are also useful for [multi-response models](https://cran.r-project.org/web/packages/brms/vignettes/brms_multivariate.html), allowing us to capture residual correlations between multiple outcomes [@hadfield2010mcmc].
+By putting $\nu$ inside the linear model, we smuggle a variance component ($\sigma$) into a distribution that otherwise has only a single rate parameter (this trick also works for the Binomial distribution [@harrison2015comparison]). OLREs are also used to capture residual correlations in [multi-response models](https://cran.r-project.org/web/packages/brms/vignettes/brms_multivariate.html) [@hadfield2010mcmc]
 
 [Predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html) are a routine form of model checking used to understand a model's ability to represent the data. Unfortunately, **most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.** In this post I will show you how to do it the right way, in either R + `brms` or Python + `PyMC`. In this post I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as `lme4` and `glmmTMB`.
 
 # The wrong way
 
-In Bayesian workflow, we often perform [posterior predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html). In brief, draws from the posterior distribution are used to generate many synthetic replications of our dataset, denoted $y_{\text{rep}}$, which are then compared to the observed values. Systematic discrepancies between the distribution of $y_\text{rep}$ and the actual data indicate misspecification, and can suggest ways to improve our model.
+In Bayesian workflow, we often perform [posterior predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html), where draws from the posterior distribution are used to generate many synthetic replications of our dataset, denoted $y_{\text{rep}}$, which are then compared to the observed values. Systematic discrepancies between the distribution of $y_\text{rep}$ and the actual data indicate misspecification, and can suggest ways to improve our models.
 
-To illustrate this idea, we'll use the Oceanic toolkit complexity dataset from Michelle Kline and Robert Boyd [@kline2010population]. The response variable is the count of unique tools in a given Oceanic society (`total_tools`), which is predicted by the natural logarithm of population size (`population`). First, we will fit this basic model, using priors from [@mcelreath2020god]:
+To illustrate this idea, we'll use the Oceanic toolkit complexity dataset from Michelle Kline and Robert Boyd [@kline2010population]. The response variable is the count of unique tools in a given Oceanic society (`total_tools`), which is predicted by the natural logarithm of population size (`population`). First we will fit this basic model, using priors from [@mcelreath2020god]. For each society $i$:
 
 $$ \text{total\_tools}_i \sim \text{Poisson}(\lambda_i)$$
 $$ \text{log}(\lambda_i) = b_0 + b_{\text{pop}}\text{log}(\text{population}_{z_i})$$
@@ -171,7 +171,7 @@ def plot_ppc_intervals(y, yrep, ax, ax_index):
         elinewidth=8,
         capsize=0,
         label=label,
-        alpha = 0.10,
+        alpha=0.1,
         markersize=20
     )
 
@@ -267,7 +267,7 @@ axes[0].set_title('OLRE PPC: The wrong way', loc = "left")
 
 :::
 
-Looks good, right? Sadly, this is a little too good to be true. We have mislead ourselves, and to see why, have a look at the $\nu_{\text{obs}}$ parameters in comparison to the observed data:
+Looks good, right? Sadly, this is a little too good to be true. We have misled ourselves. To see why, let's examine the $\nu_{\text{obs}}$ parameters in relation to the observed data:
 
 :::{.panel-tabset}
 
@@ -294,8 +294,8 @@ m_poisson_OLRE |>
 stats = az.summary(idata_OLRE, var_names=["^nu.*"], filter_vars="regex", hdi_prob=0.9)
 
 fig = plt.figure(figsize=(20, 13))
-plt.hlines(y=np.math.log(idata_OLRE.observed_data['y']), xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black")
-plt.scatter(y=np.math.log(idata_OLRE.observed_data['y']), x=stats['mean'], color="black")
+plt.hlines(y=np.log(Kline['total_tools']), xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black", linewidth=6)
+plt.scatter(y=np.log(Kline['total_tools']), x=stats['mean'], color="black", s = 150)
 
 plt.title('y ~ Fitted OLRE', loc = "left")
 plt.xlabel(r'$\nu$')
@@ -304,7 +304,7 @@ plt.ylabel('log(total tools)')
 
 :::
 
-This plot shows us that the OLREs are positively correlated with the values of the observed data. Why? These parameters are doing exactly what they are supposed to do: capture excess dispersion in the data by learning which points are higher or lower than we would expect, conditional on population size. But if you think for a moment about *out-of-sample* prediction, you might intuit the problem. We need to generate $y_\text{rep}$ for a new observation with some unknown $y_{\text{test}}$, whose value will not be known ahead of time. Thus, the OLRE should convey no information about the value $y_{\text{test}}$. In our naive predictive check, we have mistakenly treated $\nu$ as fixed, when really it should be replicated along with $y_\text{rep}$, akin to $\epsilon$ in a linear regression. Generating $y_\text{rep}$ this way is referred to as "mixed replication", because we leave the hyperparameter $\sigma$ fixed but replicate each random effect parameter [@gelman1996posterior].
+This plot shows us that the OLREs are positively correlated with the values of the observed data. Why? These parameters are doing exactly what they are supposed to do: capture excess dispersion in the data by learning which points are higher or lower than we would expect, given their population size. To understand why this is a problem, consider out-of-sample prediction: when generating $y_\text{rep}$ for a new observation, we don't know $y_{\text{test}}$ in advance, so the OLRE should convey no information about it. In our naive predictive check, we have mistakenly treated $\nu$ as fixed, when really it should be replicated along with $y_\text{rep}$, akin to $\epsilon$ in a linear regression. Generating $y_\text{rep}$ this way is referred to as "mixed replication", because we leave the hyperparameter $\sigma$ fixed but replicate each random effect parameter [@gelman1996posterior].
 
 # The right way
 
@@ -315,6 +315,7 @@ The way out of this is straightforward. All we have to do is replace the fitted 
 ## brms
 
 ```{r, warning = F, message = F, results = "hide", fig.keep = "all"}
+#| fig-cap: Correct posterior predictive checks for OLRE Poisson model, sampling new levels of nu (nu_rep). (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
 yrep_OLRE <- m_poisson_OLRE |> 
     posterior_predict(newdata = Kline |> 
     mutate(obs = paste("OLRE_rep", 1:n())),
@@ -347,14 +348,13 @@ axes[0].set_title('OLRE PPC: The right way', loc = "left")
 
 :::
 
-Notice that, unlike our first predictive check with no OLRE, the credible intervals of $y_{\text{rep}}$ all contain the observed values of y. But unlike our (wrong) second predictive check, the predictions do not conform so closely to the observed values, because each $\nu_{\text{rep}}$ is independent of $y$. This provides us with a more realistic picture of our model's fit. So, why do most posterior predictive functions treat OLREs the wrong way by default? The answer is mundane: the software doesn't know whether $\nu$ is an OLRE or instead a parameter that should be fixed across replications, like random effects for group differences. The latter is more common, so the default is sensible--but not necessarily safe.
+Notice that, unlike our first predictive check with no OLRE, the credible intervals of $y_{\text{rep}}$ all contain the observed values of y. But unlike our (wrong) second predictive check, the predictions do not conform so closely to the observed values, because each $\nu_{\text{rep}}$ is independent of $y$. This provides us with a more realistic picture of our model's fit. So, why do most posterior predictive functions treat OLREs the wrong way by default? Because the software doesn't know whether $\nu$ is an OLRE or instead a parameter that should be fixed across replications, like random effects for group differences. The latter is more common, so the default is sensible--but not necessarily safe.
 
-There is a caveat: all posterior predictive checks are overly optimistic for *out-of-sample* data, because we are using the same data points to both fit and evaluate the model. As a result, a more complex model that looks better in a predictive check might actually look worse when generalizing to new data, i.e., overfitting. This issue is not specific to OLREs, but in the final section I'll show you how to address overfitting in predictive checks.
-
+There is a caveat: even if we do it the "right way", all posterior predictive checks are overly optimistic for *out-of-sample* data because they use the same data for fitting and evaluation. A model that performs well in these checks might actually have poor generalization to new data due to overfitting. This issue is not specific to OLREs, but in the final section I'll show you how to address overfitting in predictive checks.
 
 # An even better way?
 
-Using leave-one-out cross validation, (LOOCV) we can construct predictions where one observation at a time is left out of model fitting and then used as a test point. This offers a more honest appraisal of predictive accuracy, because the model does not have access to the left out $y$ before we try to predict them. Now we have a true prediction task, rather than retrodicting the sample data.
+Leave-one-out cross validation (LOOCV) provides a more honest assessment of predictive accuracy by holding out one observation at a time as a test point. Since the model never sees the held-out observation during fitting, these model checks will reflect true predictive performance rather than *retrodiction* of the sample. In the code below perform exact LOOCV, refitting the model and making predictions for the one left out point $N = 10$ times.
 
 :::{.panel-tabset}
 
@@ -420,7 +420,7 @@ axes[0].set_title('OLRE PPC-LOO', loc = "left")
 
 :::
 
-This predictive check is even less optimistic, but it still looks better than the basic Poisson model we fit, suggesting that the OLRE is helpful. For larger models, it would be infeasible to refit $N$ times, so one might turn to Pareo-smoothed importance sampling as an approximation (PSIS-LOO) [@vehtari2017practical]. However, my understanding is that PSIS is not reliable for these types of models, and one should instead [integrate out the OLREs using adaptive quadrature](https://users.aalto.fi/~ave/modelselection/roaches.html#5_Poisson_model_with_varying_intercept_and_integrated_LOO).
+This predictive check is even less optimistic, but it still looks better than the first Poisson model we fit, suggesting that the OLRE is helpful. For large datasets, it becomes be infeasible to refit the model for each observation, so one might turn to [k-fold cross validation](https://rdrr.io/cran/brms/man/kfold.brmsfit.html) or Pareo-smoothed importance sampling as an approximation ([PSIS-LOO](https://rdrr.io/cran/brms/man/loo.brmsfit.html)) [@vehtari2017practical]. Note that PSIS may not reliable for these types of models, and one should instead [integrate out the OLREs using adaptive quadrature](https://users.aalto.fi/~ave/modelselection/roaches.html#5_Poisson_model_with_varying_intercept_and_integrated_LOO).
 
 # Reproducible environment
 
