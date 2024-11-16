@@ -16,4 +16,6 @@ about:
 
 ---
 
-I am a Data Scientist at the University of Zürich, where I do applied statistics and [teach probabalistic modelling to graduate students](https://docs.google.com/document/d/1AkOiofnt48X5XSlOVrqD8kLO1yhzbD5C7SpW39YBkuE/edit?usp=sharing). My PhD was in Biological Anthropology, where I focused on developing [phylogenetic comparative methods using Stan](https://github.com/ScottClaessens/coevolve).
+I am a Data Scientist at the University of Zürich, where I do applied statistics and [teach probabalistic modelling to graduate students](https://docs.google.com/document/d/1AkOiofnt48X5XSlOVrqD8kLO1yhzbD5C7SpW39YBkuE/edit?usp=sharing). My PhD was in Biological Anthropology, where I focused on developing [phylogenetic comparative methods using Stan](https://github.com/ScottClaessens/coevolve). 
+
+As a consultant, I solve a diverse array of modelling problems in the social and behavioral sciences. Many of these solutions are likely useful to others, but they end up buried in the supplementary materials of academic publications. So from time-to-time I will write them up as blog posts here.

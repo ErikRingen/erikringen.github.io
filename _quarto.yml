@@ -2,7 +2,7 @@ project:
   type: website
   output-dir: docs
 website:
-  title: "erikringen.github.io"
+  title: "Erik J. Ringen, PhD"
   site-url: https://erikringen.github.io
   repo-url: https://github.com/ErikRingen/erikringen.github.io
   repo-actions: [edit, issue]

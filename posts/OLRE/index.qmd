@@ -22,7 +22,7 @@ $$ \nu_i \sim \mathcal{N} (0, \sigma) $$
 
 By putting $\nu$ inside the linear model, we smuggle a variance component ($\sigma$) into a distribution that otherwise has only a single rate parameter (this trick also works for the Binomial distribution [@harrison2015comparison]). OLREs are also used to capture residual correlations in [multi-response models](https://cran.r-project.org/web/packages/brms/vignettes/brms_multivariate.html) [@hadfield2010mcmc]
 
-[Predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html) are a routine form of model checking used to understand a model's ability to represent the data. Unfortunately, **most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.** In this post I will show you how to do it the right way, in either R + `brms` or Python + `PyMC`. In this post I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as `lme4` and `glmmTMB`.
+[Predictive checks](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html) are a routine form of model checking used to understand a model's ability to represent the data. Unfortunately, **most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.** In this post I will show you how to do it the right way, in either R + `brms` or Python + `PyMC`. Here I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as `lme4` and `glmmTMB`.
 
 # The wrong way
 

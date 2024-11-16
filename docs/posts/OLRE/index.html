@@ -9,7 +9,7 @@
 <meta name="author" content="Erik J. Ringen">
 <meta name="dcterms.date" content="2024-11-10">
 
-<title>The right way to do predictive checks with observation-level random effects – erikringen.github.io</title>
+<title>The right way to do predictive checks with observation-level random effects – Erik J. Ringen, PhD</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -154,10 +154,10 @@ window.Quarto = {
 </script>
 
 <link rel="stylesheet" href="../../styles.css">
-<meta property="og:title" content="The right way to do predictive checks with observation-level random effects – erikringen.github.io">
+<meta property="og:title" content="The right way to do predictive checks with observation-level random effects – Erik J. Ringen, PhD">
 <meta property="og:description" content="">
 <meta property="og:image" content="https://erikringen.github.io/posts/OLRE/image.png">
-<meta property="og:site_name" content="erikringen.github.io">
+<meta property="og:site_name" content="Erik J. Ringen, PhD">
 <meta property="og:image:height" content="3600">
 <meta property="og:image:width" content="5400">
 </head>
@@ -170,7 +170,7 @@ window.Quarto = {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a class="navbar-brand" href="../../index.html">
-    <span class="navbar-title">erikringen.github.io</span>
+    <span class="navbar-title">Erik J. Ringen, PhD</span>
     </a>
   </div>
             <div id="quarto-search" class="" title="Search"></div>
@@ -261,7 +261,7 @@ window.Quarto = {
 <p>Observation-level random effects (OLRE) are an effective way to model overdispersed count data <span class="citation" data-cites="harrison2014using">(<a href="#ref-harrison2014using" role="doc-biblioref">Harrison 2014</a>)</span>. For example, OLREs relax the assumption of Poisson regression that the variance is equal to the mean by giving each observation <span class="math inline">\(i\)</span> a “random intercept” (<span class="math inline">\(\nu_i\)</span>):</p>
 <p><span class="math display">\[ y_i \sim \text{Poisson}(\lambda_i)\]</span> <span class="math display">\[ \text{log}(\lambda_i) = b_0 + \nu_i\]</span> <span class="math display">\[ \nu_i \sim \mathcal{N} (0, \sigma) \]</span></p>
 <p>By putting <span class="math inline">\(\nu\)</span> inside the linear model, we smuggle a variance component (<span class="math inline">\(\sigma\)</span>) into a distribution that otherwise has only a single rate parameter (this trick also works for the Binomial distribution <span class="citation" data-cites="harrison2015comparison">(<a href="#ref-harrison2015comparison" role="doc-biblioref">Harrison 2015</a>)</span>). OLREs are also used to capture residual correlations in <a href="https://cran.r-project.org/web/packages/brms/vignettes/brms_multivariate.html">multi-response models</a> <span class="citation" data-cites="hadfield2010mcmc">(<a href="#ref-hadfield2010mcmc" role="doc-biblioref">Hadfield 2010</a>)</span></p>
-<p><a href="https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html">Predictive checks</a> are a routine form of model checking used to understand a model’s ability to represent the data. Unfortunately, <strong>most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.</strong> In this post I will show you how to do it the right way, in either R + <code>brms</code> or Python + <code>PyMC</code>. In this post I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as <code>lme4</code> and <code>glmmTMB</code>.</p>
+<p><a href="https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html">Predictive checks</a> are a routine form of model checking used to understand a model’s ability to represent the data. Unfortunately, <strong>most software for performing predictive checks will handle OLREs the wrong way by default, giving an inflated goodness-of-fit.</strong> In this post I will show you how to do it the right way, in either R + <code>brms</code> or Python + <code>PyMC</code>. Here I focus on Bayesian models, but the basic idea would also hold for checking frequentist models with software such as <code>lme4</code> and <code>glmmTMB</code>.</p>
 <section id="the-wrong-way" class="level1">
 <h1>The wrong way</h1>
 <p>In Bayesian workflow, we often perform <a href="https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html">posterior predictive checks</a>, where draws from the posterior distribution are used to generate many synthetic replications of our dataset, denoted <span class="math inline">\(y_{\text{rep}}\)</span>, which are then compared to the observed values. Systematic discrepancies between the distribution of <span class="math inline">\(y_\text{rep}\)</span> and the actual data indicate misspecification, and can suggest ways to improve our models.</p>
