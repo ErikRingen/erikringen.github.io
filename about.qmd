@@ -6,11 +6,14 @@ about:
   links:
     - icon: twitter
       text: Twitter
-      href: https://twitter.com
+      href: https://x.com/err_ring/
     - icon: github
       text: Github
-      href: https://github.com
+      href: https://github.com/ErikRingen
+    - icon: scholar
+      text: Google Scholar
+      href: https://scholar.google.com/citations?hl=en&user=4FD2O0gAAAAJ&sortby=pubdate&scilu=&scisig=ADIE8skAAAAAZzhchQ_2qYApTvbPBhYZM3F85cU&gmla=AL3_zii-yQP4t2tOETV7j6OObuMPi9agCtYDMAdSlsj87N-AErGorLyRBFgIexTHU9OkZ88BETf2zWg-HBjyc2ygLJFy_Bjb3SOs3-c&sciund=12176798161790203778
 
 ---
 
-I am a Data Scientist at the University of Zürich, where I do applied statistics and teach probabalistic modelling to graduate students. My PhD was in Biological Anthropology, where I focused on phylogenetic comparative methods.
+I am a Data Scientist at the University of Zürich, where I do applied statistics and [teach probabalistic modelling to graduate students](https://docs.google.com/document/d/1AkOiofnt48X5XSlOVrqD8kLO1yhzbD5C7SpW39YBkuE/edit?usp=sharing). My PhD was in Biological Anthropology, where I focused on developing [phylogenetic comparative methods using Stan](https://github.com/ScottClaessens/coevolve).
