@@ -245,10 +245,11 @@ with pm.Model(coords = coords) as m_poisson_OLRE:
     # priors
     b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
     b_pop = pm.Normal("slope", mu=0, sigma=0.2)
-    nu = pm.Normal("nu", mu = 0, sigma = 1, dims = "obs")
+    nu_z = pm.Normal("nu_z", mu = 0, sigma = 1, dims = "obs")
     sigma = pm.Exponential("sigma", lam = 2)
+    nu = pm.Deterministic("nu", nu_z*sigma)
     # linear model
-    log_lam = b0 + nu[obs_idx]*sigma + b_pop * Kline['log_pop_z'] 
+    log_lam = b0 + nu[obs_idx] + b_pop * Kline['log_pop_z'] 
     ## Poisson likelihood
     y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=Kline['total_tools'])
 
@@ -291,7 +292,7 @@ m_poisson_OLRE |>
 ```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
 #| fig-cap: Fitted nu parameters as a function of the natural log of the response, total tools. Bars represent 90% credible intervals.
 
-stats = az.summary(idata_OLRE, var_names=["^nu.*"], filter_vars="regex", hdi_prob=0.9)
+stats = az.summary(idata_OLRE, var_names=["^nu(?!_z).*"], filter_vars="regex", hdi_prob=0.9)
 
 fig = plt.figure(figsize=(20, 13))
 plt.hlines(y=np.log(Kline['total_tools']), xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black", linewidth=6)
@@ -396,10 +397,11 @@ def model_factory(train, test):
     with pm.Model(coords = coords) as model:
         b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
         b_pop = pm.Normal("slope", mu=0, sigma=0.2)
-        nu = pm.Normal("nu", mu = 0, sigma = 1, dims = "obs")
+        nu_z = pm.Normal("nu_z", mu = 0, sigma = 1, dims = "obs")
         sigma = pm.Exponential("sigma", lam = 2)
+        nu = pm.Deterministic("nu", nu_z*sigma)
         # linear model
-        log_lam = b0 + nu[obs_idx]*sigma + b_pop * train['log_pop_z'] 
+        log_lam = b0 + nu[obs_idx] + b_pop * train['log_pop_z'] 
         ## Poisson likelihood
         y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=train['total_tools'])
 
