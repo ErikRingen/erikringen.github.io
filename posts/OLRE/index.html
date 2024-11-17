@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Erik J. Ringen">
-<meta name="dcterms.date" content="2024-11-10">
+<meta name="dcterms.date" content="2024-11-16">
 
 <title>The right way to do predictive checks with observation-level random effects – Erik J. Ringen, PhD</title>
 <style>
@@ -227,7 +227,7 @@ window.Quarto = {
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">November 10, 2024</p>
+        <p class="date">November 16, 2024</p>
       </div>
     </div>
     
@@ -266,8 +266,8 @@ window.Quarto = {
 <h1>The wrong way</h1>
 <p>In Bayesian workflow, we often perform <a href="https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html">posterior predictive checks</a>, where draws from the posterior distribution are used to generate many synthetic replications of our dataset, denoted <span class="math inline">\(y_{\text{rep}}\)</span>, which are then compared to the observed values. Systematic discrepancies between the distribution of <span class="math inline">\(y_\text{rep}\)</span> and the actual data indicate misspecification, and can suggest ways to improve our models.</p>
 <p>To illustrate this idea, we’ll use the Oceanic toolkit complexity dataset from Michelle Kline and Robert Boyd <span class="citation" data-cites="kline2010population">(<a href="#ref-kline2010population" role="doc-biblioref">Kline and Boyd 2010</a>)</span>. The response variable is the count of unique tools in a given Oceanic society (<code>total_tools</code>), which is predicted by the natural logarithm of population size (<code>population</code>). First we will fit this basic model, using priors from <span class="citation" data-cites="mcelreath2020god">(<a href="#ref-mcelreath2020god" role="doc-biblioref">McElreath 2020</a>)</span>. For each society <span class="math inline">\(i\)</span>:</p>
-<p><span class="math display">\[ \text{total\_tools}_i \sim \text{Poisson}(\lambda_i)\]</span> <span class="math display">\[ \text{log}(\lambda_i) = b_0 + b_{\text{pop}}\text{log}(\text{population}_{z_i})\]</span> <span class="math display">\[ b_0 \sim \mathcal{N}(3, 0.5)\]</span> <span class="math display">\[ b_{\text{pop}} \sim \mathcal{N}(0, 0.2)\]</span></p>
-<p>Then, we will perform posterior predictive checks using some off-the-shelf convenience functions.</p>
+<p><span class="math display">\[ \text{total\_tools}_i \sim \text{Poisson}(\lambda_i)\]</span> <span class="math display">\[ \text{log}(\lambda_i) = b_0 + b_{\text{pop}}\text{log}(\text{population}_{i})_z\]</span> <span class="math display">\[ b_0 \sim \mathcal{N}(3, 0.5)\]</span> <span class="math display">\[ b_{\text{pop}} \sim \mathcal{N}(0, 0.2)\]</span></p>
+<p>Where log(population) has been standardized to have zero mean and unit variance. Then, we will perform posterior predictive checks using some off-the-shelf convenience functions.</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">brms</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">PyMC</a></li></ul>
 <div class="tab-content">
@@ -535,7 +535,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>Looks good, right? Sadly, this is a little too good to be true. We have misled ourselves. To see why, let’s examine the <span class="math inline">\(\nu_{\text{obs}}\)</span> parameters in relation to the observed data:</p>
+<p>Looks good, right? Sadly, this is a little too good to be true. We have misled ourselves. To see why, let’s examine the posterior distribution of the OLREs in relation to the observed data:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-3-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-1" role="tab" aria-controls="tabset-3-1" aria-selected="true">brms</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-3-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-2" role="tab" aria-controls="tabset-3-2" aria-selected="false">PyMC</a></li></ul>
 <div class="tab-content">
@@ -669,12 +669,18 @@ window.Quarto = {
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>yrep_loo <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="cn">NA</span>, <span class="at">nrow =</span> <span class="fu">ndraws</span>(m_poisson_OLRE), <span class="at">ncol =</span> <span class="fu">nrow</span>(Kline))</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(Kline)) {</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    model_loo <span class="ot">&lt;-</span> <span class="fu">update</span>(m_poisson_OLRE, <span class="at">newdata =</span> Kline[<span class="sc">-</span>i,], <span class="at">seed =</span> <span class="dv">123</span>)</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    yrep_loo[,i] <span class="ot">&lt;-</span> <span class="fu">posterior_predict</span>(model_loo, <span class="at">newdata =</span> Kline[i,], <span class="at">allow_new_levels =</span> <span class="cn">TRUE</span>, <span class="at">sample_new_levels =</span> <span class="st">"gaussian"</span>)</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>bayesplot<span class="sc">::</span><span class="fu">ppc_dens_overlay</span>(Kline<span class="sc">$</span>total_tools, yrep_loo[<span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>,]) <span class="sc">+</span> <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"none"</span>) <span class="sc">+</span> bayesplot<span class="sc">::</span><span class="fu">ppc_intervals</span>(Kline<span class="sc">$</span>total_tools, yrep_loo) <span class="sc">+</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">plot_annotation</span>(<span class="at">subtitle =</span> <span class="st">"OLRE PPC-LOO"</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    Kline_train <span class="ot">&lt;-</span> Kline[<span class="sc">-</span>i,]</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    Kline_test <span class="ot">&lt;-</span> Kline[i,]</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># recompute z-scores to avoid leakage</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    mean_log_pop <span class="ot">&lt;-</span> <span class="fu">mean</span>(<span class="fu">log</span>(Kline_train<span class="sc">$</span>population))</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    sd_log_pop <span class="ot">&lt;-</span> <span class="fu">sd</span>(<span class="fu">log</span>(Kline_train<span class="sc">$</span>population))</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    model_loo <span class="ot">&lt;-</span> <span class="fu">update</span>(m_poisson_OLRE, <span class="at">newdata =</span> Kline_train <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">log_pop_z =</span> (<span class="fu">log</span>(population) <span class="sc">-</span> mean_log_pop) <span class="sc">/</span> sd_log_pop), <span class="at">seed =</span> <span class="dv">123</span>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    yrep_loo[,i] <span class="ot">&lt;-</span> <span class="fu">posterior_predict</span>(model_loo, <span class="at">newdata =</span> Kline_test <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">log_pop_z =</span> (<span class="fu">log</span>(population) <span class="sc">-</span> mean_log_pop) <span class="sc">/</span> sd_log_pop), <span class="at">allow_new_levels =</span> <span class="cn">TRUE</span>, <span class="at">sample_new_levels =</span> <span class="st">"gaussian"</span>)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>bayesplot<span class="sc">::</span><span class="fu">ppc_dens_overlay</span>(Kline<span class="sc">$</span>total_tools, yrep_loo[<span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>,]) <span class="sc">+</span> <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"none"</span>) <span class="sc">+</span> bayesplot<span class="sc">::</span><span class="fu">ppc_intervals</span>(Kline<span class="sc">$</span>total_tools, yrep_loo) <span class="sc">+</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">plot_annotation</span>(<span class="at">subtitle =</span> <span class="st">"OLRE PPC-LOO"</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -694,32 +700,36 @@ window.Quarto = {
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    obs_idx <span class="op">=</span> np.arange(<span class="bu">len</span>(train))</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    coords <span class="op">=</span> {<span class="st">"obs"</span>: obs_idx}</span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> pm.Model(coords <span class="op">=</span> coords) <span class="im">as</span> model:</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        b0 <span class="op">=</span> pm.Normal(<span class="st">"Intercept"</span>, mu<span class="op">=</span><span class="dv">3</span>, sigma<span class="op">=</span><span class="fl">0.5</span>)</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        b_pop <span class="op">=</span> pm.Normal(<span class="st">"slope"</span>, mu<span class="op">=</span><span class="dv">0</span>, sigma<span class="op">=</span><span class="fl">0.2</span>)</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        nu <span class="op">=</span> pm.Normal(<span class="st">"nu"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> <span class="dv">1</span>, dims <span class="op">=</span> <span class="st">"obs"</span>)</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        sigma <span class="op">=</span> pm.Exponential(<span class="st">"sigma"</span>, lam <span class="op">=</span> <span class="dv">2</span>)</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># linear model</span></span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        log_lam <span class="op">=</span> b0 <span class="op">+</span> nu[obs_idx]<span class="op">*</span>sigma <span class="op">+</span> b_pop <span class="op">*</span> train[<span class="st">'log_pop_z'</span>] </span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">## Poisson likelihood</span></span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> pm.Poisson(<span class="st">"y"</span>, mu<span class="op">=</span>pm.math.exp(log_lam), observed<span class="op">=</span>train[<span class="st">'total_tools'</span>])</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        nu_rep <span class="op">=</span> pm.Normal(<span class="st">"nu_rep"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> sigma)</span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        yrep <span class="op">=</span> pm.Poisson(<span class="st">"yrep"</span>, pm.math.exp(b0 <span class="op">+</span> nu_rep <span class="op">+</span> b_pop <span class="op">*</span> test[<span class="st">'log_pop_z'</span>]))</span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        idata_loo <span class="op">=</span> pm.sample(<span class="dv">1000</span>, chains <span class="op">=</span> <span class="dv">1</span>, target_accept <span class="op">=</span> <span class="fl">0.99</span>, random_seed<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    pred <span class="op">=</span> pm.sample_posterior_predictive(idata_loo, model, predictions<span class="op">=</span><span class="va">True</span>, extend_inferencedata<span class="op">=</span><span class="va">False</span>, var_names <span class="op">=</span> [<span class="st">'yrep'</span>], random_seed<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pred.predictions[<span class="st">'yrep'</span>]</span>
-<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>test_preds <span class="op">=</span> []</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># recompute z-scores to avoid leakage</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    mean_log_pop <span class="op">=</span> np.mean(np.log(train[<span class="st">'population'</span>]))</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    sd_log_pop <span class="op">=</span> np.std(np.log(train[<span class="st">'population'</span>]))</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> pm.Model(coords <span class="op">=</span> coords) <span class="im">as</span> model:</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        b0 <span class="op">=</span> pm.Normal(<span class="st">"Intercept"</span>, mu<span class="op">=</span><span class="dv">3</span>, sigma<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        b_pop <span class="op">=</span> pm.Normal(<span class="st">"slope"</span>, mu<span class="op">=</span><span class="dv">0</span>, sigma<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        nu <span class="op">=</span> pm.Normal(<span class="st">"nu"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> <span class="dv">1</span>, dims <span class="op">=</span> <span class="st">"obs"</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        sigma <span class="op">=</span> pm.Exponential(<span class="st">"sigma"</span>, lam <span class="op">=</span> <span class="dv">2</span>)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># linear model</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        log_lam <span class="op">=</span> b0 <span class="op">+</span> nu[obs_idx]<span class="op">*</span>sigma <span class="op">+</span> b_pop <span class="op">*</span> train[<span class="st">'log_pop_z'</span>] </span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">## Poisson likelihood</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> pm.Poisson(<span class="st">"y"</span>, mu<span class="op">=</span>pm.math.exp(log_lam), observed<span class="op">=</span>train[<span class="st">'total_tools'</span>])</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        nu_rep <span class="op">=</span> pm.Normal(<span class="st">"nu_rep"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> sigma)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        yrep <span class="op">=</span> pm.Poisson(<span class="st">"yrep"</span>, pm.math.exp(b0 <span class="op">+</span> nu_rep <span class="op">+</span> b_pop <span class="op">*</span> (np.log(test[<span class="st">'population'</span>]) <span class="op">-</span> mean_log_pop)<span class="op">/</span>sd_log_pop))</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        idata_loo <span class="op">=</span> pm.sample(<span class="dv">1000</span>, chains <span class="op">=</span> <span class="dv">1</span>, target_accept <span class="op">=</span> <span class="fl">0.99</span>, random_seed<span class="op">=</span><span class="dv">99</span>)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    pred <span class="op">=</span> pm.sample_posterior_predictive(idata_loo, model, predictions<span class="op">=</span><span class="va">True</span>, extend_inferencedata<span class="op">=</span><span class="va">False</span>, var_names <span class="op">=</span> [<span class="st">'yrep'</span>], random_seed<span class="op">=</span><span class="dv">2</span>)</span>
 <span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(Kline)):</span>
-<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    train <span class="op">=</span> Kline.drop(index <span class="op">=</span> Kline.index[i])</span>
-<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    test <span class="op">=</span> Kline.iloc[[i]]</span>
-<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    yrep_loo <span class="op">=</span> model_factory(train, test)</span>
-<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    test_preds.append(yrep_loo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pred.predictions[<span class="st">'yrep'</span>]</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>test_preds <span class="op">=</span> []</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(Kline)):</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    train <span class="op">=</span> Kline.drop(index <span class="op">=</span> Kline.index[i])</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    test <span class="op">=</span> Kline.iloc[[i]]</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>    yrep_loo <span class="op">=</span> model_factory(train, test)</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    test_preds.append(yrep_loo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <details class="code-fold">
 <summary>Code</summary>
@@ -743,7 +753,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>This predictive check is even less optimistic, but it still looks better than the first Poisson model we fit, suggesting that the OLRE is helpful. For large datasets, it becomes infeasible to refit the model for each observation, so one might turn to <a href="https://rdrr.io/cran/brms/man/kfold.brmsfit.html">k-fold cross validation</a> or Pareo-smoothed importance sampling as an approximation (<a href="https://rdrr.io/cran/brms/man/loo.brmsfit.html">PSIS-LOO</a>) <span class="citation" data-cites="vehtari2017practical">(<a href="#ref-vehtari2017practical" role="doc-biblioref">Vehtari, Gelman, and Gabry 2017</a>)</span>. Note that PSIS may not reliable for these types of models, and one should instead <a href="https://users.aalto.fi/~ave/modelselection/roaches.html#5_Poisson_model_with_varying_intercept_and_integrated_LOO">integrate out the OLREs using adaptive quadrature</a>.</p>
+<p>This predictive check is a bit less optimistic, but it still looks better than the first Poisson model we fit. This suggests that the OLRE is helpful and we have not overfit too badly. For large datasets, it becomes infeasible to refit the model for each observation, so one might turn to <a href="https://rdrr.io/cran/brms/man/kfold.brmsfit.html">k-fold cross validation</a> or Pareo-smoothed importance sampling as an approximation (<a href="https://rdrr.io/cran/brms/man/loo.brmsfit.html">PSIS-LOO</a>) <span class="citation" data-cites="vehtari2017practical">(<a href="#ref-vehtari2017practical" role="doc-biblioref">Vehtari, Gelman, and Gabry 2017</a>)</span>. Note that PSIS may not reliable for these types of models, and one should instead <a href="https://users.aalto.fi/~ave/modelselection/roaches.html#5_Poisson_model_with_varying_intercept_and_integrated_LOO">integrate out the OLREs using adaptive quadrature</a>.</p>
 </section>
 <section id="reproducible-environment" class="level1">
 <h1>Reproducible environment</h1>
