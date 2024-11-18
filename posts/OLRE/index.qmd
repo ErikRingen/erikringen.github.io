@@ -35,7 +35,7 @@ $$ \text{log}(\lambda_i) = b_0 + b_{\text{pop}}\text{log}(\text{population}_{i})
 $$ b_0 \sim \mathcal{N}(3, 0.5)$$
 $$ b_{\text{pop}} \sim \mathcal{N}(0, 0.2)$$
 
-Where log(population) has been standardized to have zero mean and unit variance. Then, we will perform posterior predictive checks using some off-the-shelf convenience functions.
+Where log(population) has been standardized to have zero mean and unit variance. Then, we will run posterior predictive checks using some off-the-shelf convenience functions.
 
 :::{.panel-tabset}
 
@@ -355,7 +355,7 @@ There is a caveat: even if we do it the "right way", all posterior predictive ch
 
 # An even better way?
 
-Leave-one-out cross validation (LOOCV) provides a more honest assessment of predictive accuracy by holding out one observation at a time as a test point. Since the model never sees the held-out observation during fitting, these model checks will reflect true predictive performance rather than *retrodiction* of the sample. In the code below perform exact LOOCV, refitting the model and making predictions for the left-out point $N = 10$ times.
+Leave-one-out cross validation (LOOCV) provides a more honest assessment of predictive accuracy by holding out one observation at a time as a test point. Since the model never sees the held-out observation during fitting, these model checks will reflect true predictive performance rather than *retrodiction* of the sample. In the code below we will do exact LOOCV, refitting the model and making predictions for the left-out point $N = 10$ times.
 
 :::{.panel-tabset}
 
