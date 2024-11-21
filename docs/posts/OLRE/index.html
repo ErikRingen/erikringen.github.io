@@ -567,11 +567,11 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> az.summary(idata_OLRE, var_names<span class="op">=</span>[<span class="st">"^nu(?!_z).*"</span>], filter_vars<span class="op">=</span><span class="st">"regex"</span>, hdi_prob<span class="op">=</span><span class="fl">0.9</span>)</span>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>nu_fitted_summary <span class="op">=</span> az.summary(idata_OLRE, var_names<span class="op">=</span>[<span class="st">"^nu(?!_z).*"</span>], filter_vars<span class="op">=</span><span class="st">"regex"</span>, hdi_prob<span class="op">=</span><span class="fl">0.9</span>)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">13</span>))</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>plt.hlines(y<span class="op">=</span>np.log(Kline[<span class="st">'total_tools'</span>]), xmin<span class="op">=</span>stats[<span class="st">'hdi_5%'</span>], xmax <span class="op">=</span> stats[<span class="st">'hdi_95%'</span>], color<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="dv">6</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>plt.scatter(y<span class="op">=</span>np.log(Kline[<span class="st">'total_tools'</span>]), x<span class="op">=</span>stats[<span class="st">'mean'</span>], color<span class="op">=</span><span class="st">"black"</span>, s <span class="op">=</span> <span class="dv">150</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>plt.hlines(y<span class="op">=</span>np.log(Kline[<span class="st">'total_tools'</span>]), xmin<span class="op">=</span>nu_fitted_summary[<span class="st">'hdi_5%'</span>], xmax <span class="op">=</span> nu_fitted_summary[<span class="st">'hdi_95%'</span>], color<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>plt.scatter(y<span class="op">=</span>np.log(Kline[<span class="st">'total_tools'</span>]), x<span class="op">=</span>nu_fitted_summary[<span class="st">'mean'</span>], color<span class="op">=</span><span class="st">"black"</span>, s <span class="op">=</span> <span class="dv">150</span>)</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">'y ~ Fitted OLRE'</span>, loc <span class="op">=</span> <span class="st">"left"</span>)</span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="vs">r'$\nu$'</span>)</span>
@@ -624,22 +624,16 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> xarray <span class="im">as</span> xr</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> m_poisson_OLRE:</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    nu_rep <span class="op">=</span> pm.Normal(<span class="st">"nu_rep"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> sigma, shape <span class="op">=</span> <span class="bu">len</span>(Kline))</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    log_lam <span class="op">=</span> b0 <span class="op">+</span> nu_rep <span class="op">+</span> b_pop <span class="op">*</span> Kline[<span class="st">'log_pop_z'</span>]</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    yrep <span class="op">=</span> pm.Poisson(<span class="st">"yrep"</span>, pm.math.exp(log_lam))</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>pred_yrep <span class="op">=</span> pm.sample_posterior_predictive(idata_OLRE, m_poisson_OLRE, predictions<span class="op">=</span><span class="va">True</span>, extend_inferencedata<span class="op">=</span><span class="va">False</span>, var_names <span class="op">=</span> [<span class="st">'nu_rep'</span>, <span class="st">'yrep'</span>], random_seed<span class="op">=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># resample both y and nu_z</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>pred_yrep <span class="op">=</span> pm.sample_posterior_predictive(idata_OLRE, m_poisson_OLRE, predictions<span class="op">=</span><span class="va">True</span>, extend_inferencedata<span class="op">=</span><span class="va">False</span>, var_names <span class="op">=</span> [<span class="st">'y'</span>, <span class="st">'nu_z'</span>], random_seed<span class="op">=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows<span class="op">=</span><span class="dv">1</span>, ncols<span class="op">=</span><span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">13</span>))</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>plot_ppc_dens(idata.observed_data[<span class="st">'y'</span>], pred_yrep.predictions[<span class="st">'yrep'</span>], axes, <span class="dv">0</span>)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>plot_ppc_intervals(idata.observed_data[<span class="st">'y'</span>], pred_yrep.predictions[<span class="st">'yrep'</span>], axes, <span class="dv">1</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>plot_ppc_dens(idata.observed_data[<span class="st">'y'</span>], pred_yrep.predictions[<span class="st">'y'</span>], axes, <span class="dv">0</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>plot_ppc_intervals(idata.observed_data[<span class="st">'y'</span>], pred_yrep.predictions[<span class="st">'y'</span>], axes, <span class="dv">1</span>)</span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="st">'OLRE PPC: The right way'</span>, loc <span class="op">=</span> <span class="st">"left"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
@@ -699,49 +693,56 @@ window.Quarto = {
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_factory(train, test):</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    obs_idx <span class="op">=</span> np.arange(<span class="bu">len</span>(train))</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    coords <span class="op">=</span> {<span class="st">"obs"</span>: obs_idx}</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    coords <span class="op">=</span> {<span class="st">"obs_id"</span>: obs_idx}</span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># recompute z-scores to avoid leakage</span></span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    mean_log_pop <span class="op">=</span> np.mean(np.log(train[<span class="st">'population'</span>]))</span>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    sd_log_pop <span class="op">=</span> np.std(np.log(train[<span class="st">'population'</span>]))</span>
 <span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> pm.Model(coords <span class="op">=</span> coords) <span class="im">as</span> model:</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        b0 <span class="op">=</span> pm.Normal(<span class="st">"Intercept"</span>, mu<span class="op">=</span><span class="dv">3</span>, sigma<span class="op">=</span><span class="fl">0.5</span>)</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        b_pop <span class="op">=</span> pm.Normal(<span class="st">"slope"</span>, mu<span class="op">=</span><span class="dv">0</span>, sigma<span class="op">=</span><span class="fl">0.2</span>)</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        nu_z <span class="op">=</span> pm.Normal(<span class="st">"nu_z"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> <span class="dv">1</span>, dims <span class="op">=</span> <span class="st">"obs"</span>)</span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        sigma <span class="op">=</span> pm.Exponential(<span class="st">"sigma"</span>, lam <span class="op">=</span> <span class="dv">2</span>)</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>        nu <span class="op">=</span> pm.Deterministic(<span class="st">"nu"</span>, nu_z<span class="op">*</span>sigma)</span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># linear model</span></span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        log_lam <span class="op">=</span> b0 <span class="op">+</span> nu[obs_idx] <span class="op">+</span> b_pop <span class="op">*</span> train[<span class="st">'log_pop_z'</span>] </span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">## Poisson likelihood</span></span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> pm.Poisson(<span class="st">"y"</span>, mu<span class="op">=</span>pm.math.exp(log_lam), observed<span class="op">=</span>train[<span class="st">'total_tools'</span>])</span>
-<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        nu_rep <span class="op">=</span> pm.Normal(<span class="st">"nu_rep"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> sigma)</span>
-<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        yrep <span class="op">=</span> pm.Poisson(<span class="st">"yrep"</span>, pm.math.exp(b0 <span class="op">+</span> nu_rep <span class="op">+</span> b_pop <span class="op">*</span> (np.log(test[<span class="st">'population'</span>]) <span class="op">-</span> mean_log_pop)<span class="op">/</span>sd_log_pop))</span>
-<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        idata_loo <span class="op">=</span> pm.sample(<span class="dv">1000</span>, chains <span class="op">=</span> <span class="dv">1</span>, target_accept <span class="op">=</span> <span class="fl">0.99</span>, random_seed<span class="op">=</span><span class="dv">99</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    train[<span class="st">'log_pop_z'</span>] <span class="op">=</span> stats.zscore(np.log(train[<span class="st">'population'</span>]))</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> pm.Model(coords <span class="op">=</span> coords) <span class="im">as</span> model:</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        log_pop_z <span class="op">=</span> pm.Data(<span class="st">"log_pop_z"</span>, train[<span class="st">'log_pop_z'</span>], dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> pm.Data(<span class="st">"y"</span>, train[<span class="st">'total_tools'</span>], dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        b0 <span class="op">=</span> pm.Normal(<span class="st">"Intercept"</span>, mu<span class="op">=</span><span class="dv">3</span>, sigma<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        b_pop <span class="op">=</span> pm.Normal(<span class="st">"slope"</span>, mu<span class="op">=</span><span class="dv">0</span>, sigma<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        nu_z <span class="op">=</span> pm.Normal(<span class="st">"nu_z"</span>, mu <span class="op">=</span> <span class="dv">0</span>, sigma <span class="op">=</span> <span class="dv">1</span>, dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        sigma <span class="op">=</span> pm.Exponential(<span class="st">"sigma"</span>, lam <span class="op">=</span> <span class="dv">2</span>)</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        nu <span class="op">=</span> pm.Deterministic(<span class="st">"nu"</span>, nu_z<span class="op">*</span>sigma, dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># linear model</span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        log_lam <span class="op">=</span> pm.Deterministic(<span class="st">"log_lam"</span>, b0 <span class="op">+</span> nu <span class="op">+</span> b_pop <span class="op">*</span> log_pop_z, dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        <span class="co">## Poisson likelihood</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> pm.Poisson(<span class="st">"y_obs"</span>, mu<span class="op">=</span>pm.math.exp(log_lam), observed<span class="op">=</span>y, dims <span class="op">=</span> <span class="st">"obs_id"</span>)</span>
 <span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    pred <span class="op">=</span> pm.sample_posterior_predictive(idata_loo, model, predictions<span class="op">=</span><span class="va">True</span>, extend_inferencedata<span class="op">=</span><span class="va">False</span>, var_names <span class="op">=</span> [<span class="st">'yrep'</span>], random_seed<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pred.predictions[<span class="st">'yrep'</span>]</span>
-<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>test_preds <span class="op">=</span> []</span>
-<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(Kline)):</span>
-<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    train <span class="op">=</span> Kline.drop(index <span class="op">=</span> Kline.index[i])</span>
-<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>    test <span class="op">=</span> Kline.iloc[[i]]</span>
-<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    yrep_loo <span class="op">=</span> model_factory(train, test)</span>
-<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    test_preds.append(yrep_loo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        idata_loo <span class="op">=</span> pm.sample(<span class="dv">1000</span>, chains <span class="op">=</span> <span class="dv">1</span>, target_accept <span class="op">=</span> <span class="fl">0.99</span>, random_seed<span class="op">=</span><span class="dv">99</span>)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> model:</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>        pm.set_data({<span class="st">"log_pop_z"</span>: (np.log(test[<span class="st">'population'</span>]) <span class="op">-</span> mean_log_pop)<span class="op">/</span>sd_log_pop, <span class="st">"y"</span>: test[<span class="st">'total_tools'</span>]}, coords<span class="op">=</span>{<span class="st">"obs_id"</span>: np.array([<span class="bu">len</span>(train)<span class="op">+</span><span class="dv">1</span>])})</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>        idata_loo.extend(pm.sample_posterior_predictive(idata_loo, random_seed<span class="op">=</span><span class="dv">2</span>))</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> idata_loo.posterior_predictive[<span class="st">'y_obs'</span>]</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>test_preds <span class="op">=</span> []</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(Kline)):</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>    train <span class="op">=</span> Kline.drop(index <span class="op">=</span> Kline.index[i])</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>    test <span class="op">=</span> Kline.iloc[[i]]</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>    yrep_loo <span class="op">=</span> model_factory(train, test)</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>    test_preds.append(yrep_loo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>loo_preds_combined <span class="op">=</span> xr.concat(test_preds, dim<span class="op">=</span><span class="st">'obs'</span>).transpose(<span class="st">'chain'</span>, <span class="st">'draw'</span>, <span class="st">'obs'</span>, <span class="st">'yrep_dim_2'</span>).squeeze(<span class="st">'yrep_dim_2'</span>)</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows<span class="op">=</span><span class="dv">1</span>, ncols<span class="op">=</span><span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">13</span>))</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>plot_ppc_dens(idata.observed_data[<span class="st">'y'</span>], loo_preds_combined, axes, <span class="dv">0</span>)</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>plot_ppc_intervals(idata.observed_data[<span class="st">'y'</span>], loo_preds_combined, axes, <span class="dv">1</span>)</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="st">'OLRE PPC-LOO'</span>, loc <span class="op">=</span> <span class="st">"left"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> xarray <span class="im">as</span> xr</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>loo_preds_combined <span class="op">=</span> xr.concat(test_preds, dim<span class="op">=</span><span class="st">'y_obs'</span>).transpose(<span class="st">'chain'</span>, <span class="st">'draw'</span>, <span class="st">'y_obs'</span>, <span class="st">'obs_id'</span>).squeeze(<span class="st">'obs_id'</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows<span class="op">=</span><span class="dv">1</span>, ncols<span class="op">=</span><span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">13</span>))</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>plot_ppc_dens(idata.observed_data[<span class="st">'y'</span>], loo_preds_combined, axes, <span class="dv">0</span>)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>plot_ppc_intervals(idata.observed_data[<span class="st">'y'</span>], loo_preds_combined, axes, <span class="dv">1</span>)</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="st">'OLRE PPC-LOO'</span>, loc <span class="op">=</span> <span class="st">"left"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">

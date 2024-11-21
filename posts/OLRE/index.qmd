@@ -292,11 +292,11 @@ m_poisson_OLRE |>
 ```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
 #| fig-cap: Fitted nu parameters as a function of the natural log of the response, total tools. Bars represent 90% credible intervals.
 
-stats = az.summary(idata_OLRE, var_names=["^nu(?!_z).*"], filter_vars="regex", hdi_prob=0.9)
+nu_fitted_summary = az.summary(idata_OLRE, var_names=["^nu(?!_z).*"], filter_vars="regex", hdi_prob=0.9)
 
 fig = plt.figure(figsize=(20, 13))
-plt.hlines(y=np.log(Kline['total_tools']), xmin=stats['hdi_5%'], xmax = stats['hdi_95%'], color="black", linewidth=6)
-plt.scatter(y=np.log(Kline['total_tools']), x=stats['mean'], color="black", s = 150)
+plt.hlines(y=np.log(Kline['total_tools']), xmin=nu_fitted_summary['hdi_5%'], xmax = nu_fitted_summary['hdi_95%'], color="black", linewidth=6)
+plt.scatter(y=np.log(Kline['total_tools']), x=nu_fitted_summary['mean'], color="black", s = 150)
 
 plt.title('y ~ Fitted OLRE', loc = "left")
 plt.xlabel(r'$\nu$')
@@ -331,19 +331,13 @@ bayesplot::ppc_dens_overlay(Kline$total_tools, yrep_OLRE[1:100,]) + theme(legend
 ```{python, warning = F, message = F, results = "hide", fig.keep = "all"}
 #| fig-cap: Correct posterior predictive checks for OLRE Poisson model, sampling new levels of nu (nu_rep). (left) replicated and observed densities, (right) observation-level reps, with bars representing 50% and 90% credible intervals.
 
-import xarray as xr
-
-with m_poisson_OLRE:
-    nu_rep = pm.Normal("nu_rep", mu = 0, sigma = sigma, shape = len(Kline))
-    log_lam = b0 + nu_rep + b_pop * Kline['log_pop_z']
-    yrep = pm.Poisson("yrep", pm.math.exp(log_lam))
-
-pred_yrep = pm.sample_posterior_predictive(idata_OLRE, m_poisson_OLRE, predictions=True, extend_inferencedata=False, var_names = ['nu_rep', 'yrep'], random_seed=2)
+# resample both y and nu_z
+pred_yrep = pm.sample_posterior_predictive(idata_OLRE, m_poisson_OLRE, predictions=True, extend_inferencedata=False, var_names = ['y', 'nu_z'], random_seed=2)
 
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
 
-plot_ppc_dens(idata.observed_data['y'], pred_yrep.predictions['yrep'], axes, 0)
-plot_ppc_intervals(idata.observed_data['y'], pred_yrep.predictions['yrep'], axes, 1)
+plot_ppc_dens(idata.observed_data['y'], pred_yrep.predictions['y'], axes, 0)
+plot_ppc_intervals(idata.observed_data['y'], pred_yrep.predictions['y'], axes, 1)
 axes[0].set_title('OLRE PPC: The right way', loc = "left")
 ```
 
@@ -388,31 +382,36 @@ bayesplot::ppc_dens_overlay(Kline$total_tools, yrep_loo[1:100,]) + theme(legend.
 
 def model_factory(train, test):
     obs_idx = np.arange(len(train))
-    coords = {"obs": obs_idx}
+    coords = {"obs_id": obs_idx}
 
     # recompute z-scores to avoid leakage
     mean_log_pop = np.mean(np.log(train['population']))
     sd_log_pop = np.std(np.log(train['population']))
 
+    train['log_pop_z'] = stats.zscore(np.log(train['population']))
+
     with pm.Model(coords = coords) as model:
+        log_pop_z = pm.Data("log_pop_z", train['log_pop_z'], dims = "obs_id")
+        y = pm.Data("y", train['total_tools'], dims = "obs_id")
+
         b0 = pm.Normal("Intercept", mu=3, sigma=0.5)
         b_pop = pm.Normal("slope", mu=0, sigma=0.2)
-        nu_z = pm.Normal("nu_z", mu = 0, sigma = 1, dims = "obs")
+        nu_z = pm.Normal("nu_z", mu = 0, sigma = 1, dims = "obs_id")
         sigma = pm.Exponential("sigma", lam = 2)
-        nu = pm.Deterministic("nu", nu_z*sigma)
+        nu = pm.Deterministic("nu", nu_z*sigma, dims = "obs_id")
         # linear model
-        log_lam = b0 + nu[obs_idx] + b_pop * train['log_pop_z'] 
+        log_lam = pm.Deterministic("log_lam", b0 + nu + b_pop * log_pop_z, dims = "obs_id")
         ## Poisson likelihood
-        y = pm.Poisson("y", mu=pm.math.exp(log_lam), observed=train['total_tools'])
-
-        nu_rep = pm.Normal("nu_rep", mu = 0, sigma = sigma)
-        yrep = pm.Poisson("yrep", pm.math.exp(b0 + nu_rep + b_pop * (np.log(test['population']) - mean_log_pop)/sd_log_pop))
+        y = pm.Poisson("y_obs", mu=pm.math.exp(log_lam), observed=y, dims = "obs_id")
     
         idata_loo = pm.sample(1000, chains = 1, target_accept = 0.99, random_seed=99)
     
-    pred = pm.sample_posterior_predictive(idata_loo, model, predictions=True, extend_inferencedata=False, var_names = ['yrep'], random_seed=2)
+    with model:
+        pm.set_data({"log_pop_z": (np.log(test['population']) - mean_log_pop)/sd_log_pop, "y": test['total_tools']}, coords={"obs_id": np.array([len(train)+1])})
+        
+        idata_loo.extend(pm.sample_posterior_predictive(idata_loo, random_seed=2))
 
-    return pred.predictions['yrep']
+    return idata_loo.posterior_predictive['y_obs']
 
 test_preds = []
 
@@ -422,7 +421,9 @@ for i in range(len(Kline)):
     yrep_loo = model_factory(train, test)
     test_preds.append(yrep_loo)
 
-loo_preds_combined = xr.concat(test_preds, dim='obs').transpose('chain', 'draw', 'obs', 'yrep_dim_2').squeeze('yrep_dim_2')
+import xarray as xr
+
+loo_preds_combined = xr.concat(test_preds, dim='y_obs').transpose('chain', 'draw', 'y_obs', 'obs_id').squeeze('obs_id')
         
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 13))
 plot_ppc_dens(idata.observed_data['y'], loo_preds_combined, axes, 0)
